@@ -1,0 +1,86 @@
+#include <PS4Controller.h>
+
+// Umbral para detectar movimiento del joystick (evita ruido cerca del centro)
+#define JOYSTICK_THRESHOLD 50
+// Tamaño del sector angular para cada dirección (360° / 8 = 45° por sector)
+#define ANGLE_STEP 45
+
+// Variables para almacenar el último estado de los botones
+bool lastXState = false;
+bool lastOState = false;
+
+void setup() {
+  Serial.begin(115200);
+  
+  // Inicia la conexión Bluetooth con el control PS4
+  PS4.begin();
+  Serial.println("Esperando conexión del control PS4...");
+}
+
+void loop() {
+  if (PS4.isConnected()) {
+    // Leer joystick izquierdo
+    int x = PS4.LStickX(); // Eje X: -128 a 127
+    int y = PS4.LStickY(); // Eje Y: -128 a 127
+
+    // Determinar la dirección del joystick
+    int joystickState = getJoystickDirection(x, y);
+
+    // Enviar el estado del joystick
+    Serial.println(joystickState);
+
+    // Leer los botones X y O
+    bool xPressed = PS4.Cross();     // Botón X (Cruz)
+    bool oPressed = PS4.Circle();    // Botón O (Círculo)
+
+    // Enviar 'x' si el botón X fue presionado (flanco ascendente)
+    if (xPressed && !lastXState) {
+      Serial.println("x");
+    }
+    lastXState = xPressed;
+
+    // Enviar 'o' si el botón O fue presionado (flanco ascendente)
+    if (oPressed && !lastOState) {
+      Serial.println("o");
+    }
+    lastOState = oPressed;
+
+  } else {
+    Serial.println("Control PS4 desconectado");
+    lastXState = false;
+    lastOState = false;
+    delay(1000);
+  }
+
+  delay(15);
+}
+
+// Función para determinar la dirección del joystick
+int getJoystickDirection(int x, int y) {
+  if (abs(x) < JOYSTICK_THRESHOLD && abs(y) < JOYSTICK_THRESHOLD) {
+    return 0;
+  }
+
+  float angle = atan2(y, x) * 180 / PI;
+  if (angle < 0) {
+    angle += 360;
+  }
+
+  if (angle >= 360 - ANGLE_STEP/2 || angle < ANGLE_STEP/2) {
+    return 3; // Derecha
+  } else if (angle < 90 - ANGLE_STEP/2) {
+    return 2; // Arriba-Derecha
+  } else if (angle < 90 + ANGLE_STEP/2) {
+    return 1; // Arriba
+  } else if (angle < 180 - ANGLE_STEP/2) {
+    return 8; // Arriba-Izquierda
+  } else if (angle < 180 + ANGLE_STEP/2) {
+    return 7; // Izquierda
+  } else if (angle < 270 - ANGLE_STEP/2) {
+    return 6; // Abajo-Izquierda
+  } else if (angle < 270 + ANGLE_STEP/2) {
+    return 5; // Abajo
+  } else {
+    return 4; // Abajo-Derecha
+  }
+}
